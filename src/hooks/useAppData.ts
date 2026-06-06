@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Goal, GoalCompletion, Reward, Note, ViewMode, FamilyStats, MemberStats } from '@/types';
+import type { Goal, GoalCompletion, Reward, Note, ViewMode, FamilyStats, MemberStats, FamilyMission } from '@/types';
 import { DEFAULT_MEMBERS, getCurrentPeriodKey, getPeriodKey, getPeriodLabel, isGoalInView } from '@/lib/constants';
 import { loadFromCloud, saveToCloud, isCloudEnabled, type DataStore } from '@/lib/clientStorage';
 
-const LS = { goals: 'hfb_goals', completions: 'hfb_completions', rewards: 'hfb_rewards', notes: 'hfb_notes' };
+const LS = { goals: 'hfb_goals', completions: 'hfb_completions', rewards: 'hfb_rewards', notes: 'hfb_notes', missions: 'hfb_missions' };
 
 function lsGet<T>(key: string, fallback: T): T {
   try {
@@ -15,12 +15,13 @@ function lsGet<T>(key: string, fallback: T): T {
   } catch { return fallback; }
 }
 
-function lsSetAll(goals: Goal[], completions: GoalCompletion[], rewards: Reward[], notes: Note[] = []) {
+function lsSetAll(goals: Goal[], completions: GoalCompletion[], rewards: Reward[], notes: Note[] = [], missions: FamilyMission[] = []) {
   try {
     localStorage.setItem(LS.goals, JSON.stringify(goals));
     localStorage.setItem(LS.completions, JSON.stringify(completions));
     localStorage.setItem(LS.rewards, JSON.stringify(rewards));
     localStorage.setItem(LS.notes, JSON.stringify(notes));
+    localStorage.setItem(LS.missions, JSON.stringify(missions));
   } catch {}
 }
 
@@ -30,6 +31,7 @@ export function useAppData() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [completions, setCompletions] = useState<GoalCompletion[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [missions, setMissions] = useState<FamilyMission[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
@@ -40,11 +42,13 @@ export function useAppData() {
   const completionsRef = useRef(completions);
   const rewardsRef = useRef(rewards);
   const notesRef = useRef(notes);
+  const missionsRef = useRef(missions);
   const selectedDateRef = useRef(selectedDate);
   goalsRef.current = goals;
   completionsRef.current = completions;
   rewardsRef.current = rewards;
   notesRef.current = notes;
+  missionsRef.current = missions;
   selectedDateRef.current = selectedDate;
 
   useEffect(() => {
@@ -56,13 +60,15 @@ export function useAppData() {
         const c = (cloud.completions ?? []) as GoalCompletion[];
         const r = (cloud.rewards ?? []) as Reward[];
         const n = (cloud.notes ?? []) as Note[];
-        setGoals(g); setCompletions(c); setRewards(r); setNotes(n);
-        lsSetAll(g, c, r, n);
+        const ms = (cloud.missions ?? []) as FamilyMission[];
+        setGoals(g); setCompletions(c); setRewards(r); setNotes(n); setMissions(ms);
+        lsSetAll(g, c, r, n, ms);
       } else {
         setGoals(lsGet<Goal[]>(LS.goals, []));
         setCompletions(lsGet<GoalCompletion[]>(LS.completions, []));
         setRewards(lsGet<Reward[]>(LS.rewards, []));
         setNotes(lsGet<Note[]>(LS.notes, []));
+        setMissions(lsGet<FamilyMission[]>(LS.missions, []));
       }
       setSyncStatus('idle');
       setIsLoaded(true);
@@ -79,6 +85,7 @@ export function useAppData() {
         completions: completionsRef.current,
         rewards: rewardsRef.current,
         notes: notesRef.current,
+        missions: missionsRef.current,
       };
       await saveToCloud(data);
       setSyncStatus('saved');
@@ -89,12 +96,13 @@ export function useAppData() {
     }
   }, []);
 
-  function update(newGoals: Goal[], newCompletions: GoalCompletion[], newRewards: Reward[], newNotes?: Note[]) {
+  function update(newGoals: Goal[], newCompletions: GoalCompletion[], newRewards: Reward[], newNotes?: Note[], newMissions?: FamilyMission[]) {
     setGoals(newGoals);
     setCompletions(newCompletions);
     setRewards(newRewards);
     if (newNotes !== undefined) setNotes(newNotes);
-    lsSetAll(newGoals, newCompletions, newRewards, newNotes ?? notesRef.current);
+    if (newMissions !== undefined) setMissions(newMissions);
+    lsSetAll(newGoals, newCompletions, newRewards, newNotes ?? notesRef.current, newMissions ?? missionsRef.current);
   }
 
   const addGoal = useCallback((goalData: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => {
@@ -198,6 +206,50 @@ export function useAppData() {
     lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, updated);
   }, []);
 
+
+  const addMission = useCallback((data: Omit<FamilyMission, 'id' | 'createdAt' | 'isActive' | 'contributions'>) => {
+    const newM: FamilyMission = { ...data, id: uuidv4(), createdAt: new Date().toISOString(), isActive: true, contributions: [] };
+    const updated = [...missionsRef.current, newM];
+    setMissions(updated);
+    lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, notesRef.current, updated);
+    return newM;
+  }, []);
+
+  const updateMission = useCallback((id: string, updates: Partial<FamilyMission>) => {
+    const updated = missionsRef.current.map((m) => m.id === id ? { ...m, ...updates } : m);
+    setMissions(updated);
+    lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, notesRef.current, updated);
+  }, []);
+
+  const deleteMission = useCallback((id: string) => {
+    const updated = missionsRef.current.filter((m) => m.id !== id);
+    setMissions(updated);
+    lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, notesRef.current, updated);
+  }, []);
+
+
+  const contributeMission = useCallback((missionId: string, memberId: string) => {
+    const updated = missionsRef.current.map((m) => {
+      if (m.id !== missionId) return m;
+      return { ...m, contributions: [...m.contributions, { memberId, createdAt: new Date().toISOString() }] };
+    });
+    setMissions(updated);
+    lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, notesRef.current, updated);
+  }, []);
+
+  const undoContribution = useCallback((missionId: string, memberId: string) => {
+    const updated = missionsRef.current.map((m) => {
+      if (m.id !== missionId) return m;
+      const contributions = [...m.contributions];
+      // remove last contribution of this member
+      const idx = contributions.map((c) => c.memberId).lastIndexOf(memberId);
+      if (idx !== -1) contributions.splice(idx, 1);
+      return { ...m, contributions };
+    });
+    setMissions(updated);
+    lsSetAll(goalsRef.current, completionsRef.current, rewardsRef.current, notesRef.current, updated);
+  }, []);
+
   const deleteNote = useCallback((id: string) => {
     const updated = notesRef.current.filter((n) => n.id !== id);
     setNotes(updated);
@@ -214,6 +266,7 @@ export function useAppData() {
     addGoal, deleteGoal,
     toggleCompletion, isGoalCompleted,
     addReward, updateReward, deleteReward,
+    missions, addMission, updateMission, deleteMission, contributeMission, undoContribution,
     addNote, deleteNote,
     getStats, getMemberGoals,
   };

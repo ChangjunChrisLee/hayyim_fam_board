@@ -87,3 +87,21 @@ export interface FamilyStats {
   percentage: number;
   memberStats: MemberStats[];
 }
+
+export type MissionPeriod = 'daily' | 'weekly' | 'monthly' | 'alltime';
+
+export interface MissionContribution {
+  memberId: string;
+  createdAt: string;
+}
+
+export interface FamilyMission {
+  id: string;
+  title: string;
+  targetCount: number;
+  period: MissionPeriod;
+  reward: string;
+  createdAt: string;
+  isActive: boolean;
+  contributions: MissionContribution[];
+}

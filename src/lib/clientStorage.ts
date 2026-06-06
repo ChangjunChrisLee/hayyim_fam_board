@@ -3,6 +3,7 @@ export interface DataStore {
   completions: unknown[];
   rewards: unknown[];
   notes: unknown[];
+  missions?: unknown[];
 }
 
 function getUrl(): string | null {

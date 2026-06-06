@@ -26,6 +26,7 @@ const config: Config = {
         },
       },
       animation: {
+        floatUp: 'floatUp 0.8s ease-out forwards',
         "bounce-slow": "bounce 2s infinite",
         "pulse-slow": "pulse 3s infinite",
         "wiggle": "wiggle 0.5s ease-in-out",
@@ -33,6 +34,10 @@ const config: Config = {
         "celebration": "celebration 0.6s ease-out",
       },
       keyframes: {
+        floatUp: {
+          '0%':   { opacity: '1', transform: 'translateY(0) translateX(-50%)' },
+          '100%': { opacity: '0', transform: 'translateY(-50px) translateX(-50%)' },
+        },
         wiggle: {
           "0%, 100%": { transform: "rotate(-3deg)" },
           "50%": { transform: "rotate(3deg)" },

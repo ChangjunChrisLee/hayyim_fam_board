@@ -7,8 +7,11 @@ import MemberCard from '@/components/MemberCard';
 import GoalModal from '@/components/GoalModal';
 import RewardModal from '@/components/RewardModal';
 import NoteBoard from '@/components/NoteBoard';
+import FamilyTree from '@/components/FamilyTree';
+import FamilyMissionCard from '@/components/FamilyMissionCard';
+import FamilyMissionModal from '@/components/FamilyMissionModal';
 import GoalCheckEffect from '@/components/GoalCheckEffect';
-import type { ViewMode, Goal, Reward, Member } from '@/types';
+import type { ViewMode, Goal, Reward, Member, FamilyMission } from '@/types';
 import { getEncouragementMessage } from '@/lib/constants';
 
 const CelebrationEffect = dynamic(() => import('@/components/CelebrationEffect'), { ssr: false });
@@ -25,13 +28,14 @@ const SYNC_LABEL: Record<string, string> = {
 
 export default function Home() {
   const {
-    members, goals, rewards, notes,
+    members, goals, completions, rewards, notes,
     viewMode, setViewMode, isLoaded,
     navigatePeriod, goToToday, isCurrentPeriod, periodLabel,
     cloudEnabled, syncStatus, syncToCloud,
     addGoal, deleteGoal,
     toggleCompletion, isGoalCompleted,
     addReward, updateReward, deleteReward,
+    missions, addMission, updateMission, deleteMission, contributeMission, undoContribution,
     addNote, deleteNote,
     getStats, getMemberGoals,
   } = useAppData();
@@ -40,6 +44,8 @@ export default function Home() {
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState<string | undefined>();
   const [editingReward, setEditingReward] = useState<Reward | undefined>();
+  const [showMissionModal, setShowMissionModal] = useState(false);
+  const [editingMission, setEditingMission] = useState<FamilyMission | undefined>();
   const [showCelebration, setShowCelebration] = useState(false);
   const [checkEffectMember, setCheckEffectMember] = useState<Member | null>(null);
   const [encouragement, setEncouragement] = useState('');
@@ -47,6 +53,7 @@ export default function Home() {
 
   const stats = getStats(viewMode);
   const currentReward = rewards.find((r) => r.period === viewMode);
+  const activeMission = missions.find((m) => m.isActive);
 
   useEffect(() => {
     setEncouragement(getEncouragementMessage(stats.percentage));
@@ -235,6 +242,18 @@ export default function Home() {
           </div>
         </div>
 
+        <FamilyTree completions={completions} members={members} />
+
+        <FamilyMissionCard
+          mission={activeMission ?? null}
+          members={members}
+          onAdd={() => { setEditingMission(undefined); setShowMissionModal(true); }}
+          onEdit={(m) => { setEditingMission(m); setShowMissionModal(true); }}
+          onDelete={(id) => deleteMission(id)}
+          onContribute={(missionId, memberId) => contributeMission(missionId, memberId)}
+          onUndo={(missionId, memberId) => undoContribution(missionId, memberId)}
+        />
+
         <div>
           <h2 className="font-bold text-gray-700 text-sm mb-3 px-1">👨‍👩‍👧‍👦 가족별 목표</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -274,6 +293,17 @@ export default function Home() {
         <RewardModal existing={editingReward}
           onClose={() => { setShowRewardModal(false); setEditingReward(undefined); }}
           onSave={handleSaveReward} />
+      )}
+      {showMissionModal && (
+        <FamilyMissionModal
+          existing={editingMission}
+          onClose={() => { setShowMissionModal(false); setEditingMission(undefined); }}
+          onSave={(data) => {
+            if (editingMission) updateMission(editingMission.id, data);
+            else addMission(data);
+            setEditingMission(undefined);
+          }}
+        />
       )}
       {showCelebration && <CelebrationEffect onClose={() => setShowCelebration(false)} />}
       {checkEffectMember && (
