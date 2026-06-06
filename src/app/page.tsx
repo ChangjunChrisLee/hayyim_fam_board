@@ -1,0 +1,345 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import { useAppData } from '@/hooks/useAppData';
+import MemberCard from '@/components/MemberCard';
+import GoalModal from '@/components/GoalModal';
+import RewardModal from '@/components/RewardModal';
+import type { ViewMode, Goal, Reward } from '@/types';
+import { getEncouragementMessage } from '@/lib/constants';
+
+const CelebrationEffect = dynamic(() => import('@/components/CelebrationEffect'), { ssr: false });
+
+const VIEW_TABS: { key: ViewMode; label: string }[] = [
+  { key: 'daily', label: '오늘 📅' },
+  { key: 'weekly', label: '이번 주 📆' },
+  { key: 'monthly', label: '이번 달 🗓️' },
+];
+
+export default function Home() {
+  const {
+    members,
+    goals,
+    rewards,
+    viewMode,
+    setViewMode,
+    isLoaded,
+    useLocalStorage,
+    addGoal,
+    deleteGoal,
+    toggleCompletion,
+    isGoalCompleted,
+    addReward,
+    updateReward,
+    deleteReward,
+    getStats,
+    getMemberGoals,
+  } = useAppData();
+
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [defaultMemberId, setDefaultMemberId] = useState<string | undefined>();
+  const [editingReward, setEditingReward] = useState<Reward | undefined>();
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [encouragement, setEncouragement] = useState('');
+  const [prevPercentage, setPrevPercentage] = useState<number | null>(null);
+
+  const stats = getStats(viewMode);
+  const currentReward = rewards.find((r) => r.period === viewMode);
+
+  // Refresh encouragement message when percentage changes
+  useEffect(() => {
+    setEncouragement(getEncouragementMessage(stats.percentage));
+  }, [stats.percentage]);
+
+  // Celebration when 100% hit
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (stats.totalGoals > 0 && stats.percentage === 100 && prevPercentage !== 100) {
+      setShowCelebration(true);
+    }
+    setPrevPercentage(stats.percentage);
+  }, [stats.percentage, stats.totalGoals, isLoaded, prevPercentage]);
+
+  function openAddGoal(memberId?: string) {
+    setDefaultMemberId(memberId);
+    setShowGoalModal(true);
+  }
+
+  const handleSaveGoal = useCallback(
+    async (data: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => {
+      await addGoal(data);
+    },
+    [addGoal]
+  );
+
+  const handleSaveReward = useCallback(
+    async (data: Omit<Reward, 'id' | 'createdAt'>) => {
+      if (editingReward) {
+        await updateReward(editingReward.id, data);
+      } else {
+        await addReward(data);
+      }
+      setEditingReward(undefined);
+    },
+    [addReward, updateReward, editingReward]
+  );
+
+  // Progress bar colour based on percentage
+  const progressColor =
+    stats.percentage === 100
+      ? '#22c55e'
+      : stats.percentage >= 70
+      ? '#3b82f6'
+      : stats.percentage >= 40
+      ? '#f59e0b'
+      : '#f87171';
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl animate-bounce-slow mb-4">🌟</div>
+          <p className="text-gray-500 font-medium">하임이네 보드 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pb-10">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md shadow-card">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+          <span className="text-3xl">🌟</span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base font-extrabold text-gray-800 truncate leading-tight">
+              하임이네 목표 달성 보드
+            </h1>
+            <p className="text-xs text-gray-500 truncate">{encouragement}</p>
+          </div>
+          {/* Global add goal */}
+          <button
+            onClick={() => openAddGoal()}
+            className="flex-shrink-0 px-3 py-2 rounded-2xl bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors"
+          >
+            + 목표
+          </button>
+        </div>
+
+        {/* Tab bar */}
+        <div className="max-w-4xl mx-auto px-4 pb-3">
+          <div className="grid grid-cols-3 gap-1.5 bg-gray-100 rounded-2xl p-1">
+            {VIEW_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setViewMode(tab.key)}
+                className={`py-2 rounded-xl text-sm font-semibold transition-all ${
+                  viewMode === tab.key
+                    ? 'bg-white shadow-card text-gray-800'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 pt-5 space-y-5">
+        {/* ── Storage badge ── */}
+        {useLocalStorage && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
+            <span>💾</span>
+            <span>
+              Google Sheets 미연결 — 데이터가 이 기기에만 저장돼요.{' '}
+              <a href="#" className="underline font-medium">
+                설정 방법 보기
+              </a>
+            </span>
+          </div>
+        )}
+
+        {/* ── Family Progress Card ── */}
+        <div className="rounded-3xl overflow-hidden shadow-soft bg-white">
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="font-bold text-gray-800 text-base">🏠 우리 가족 달성률</h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  전체 {stats.completedGoals}/{stats.totalGoals}개 완료
+                </p>
+              </div>
+              <div
+                className="text-3xl font-extrabold"
+                style={{ color: progressColor }}
+              >
+                {stats.percentage}%
+              </div>
+            </div>
+
+            {/* Main progress bar */}
+            <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${stats.percentage}%`, backgroundColor: progressColor }}
+              />
+            </div>
+
+            {/* Member mini progress */}
+            <div className="grid grid-cols-5 gap-2 mt-4">
+              {members.map((m) => {
+                const mStat = stats.memberStats.find((s) => s.memberId === m.id);
+                const pct = mStat?.percentage ?? 0;
+                return (
+                  <div key={m.id} className="flex flex-col items-center gap-1">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: m.bgColor }}
+                    >
+                      {m.icon}
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, backgroundColor: m.color }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 font-medium">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Reward Card ── */}
+        <div className="rounded-3xl overflow-hidden shadow-soft bg-white">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-gray-800 text-base">🏆 보상</h2>
+              <button
+                onClick={() => {
+                  setEditingReward(currentReward);
+                  setShowRewardModal(true);
+                }}
+                className="text-sm px-3 py-1.5 rounded-xl bg-yellow-50 text-yellow-700 font-medium hover:bg-yellow-100 transition-colors"
+              >
+                {currentReward ? '✏️ 수정' : '+ 보상 설정'}
+              </button>
+            </div>
+
+            {currentReward ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">기준 달성률</span>
+                  <span className="font-bold text-yellow-600">
+                    {currentReward.targetPercentage}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">현재 달성률</span>
+                  <span className="font-bold" style={{ color: progressColor }}>
+                    {stats.percentage}%
+                  </span>
+                </div>
+                {/* Progress toward reward */}
+                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (stats.percentage / currentReward.targetPercentage) * 100
+                      )}%`,
+                      backgroundColor:
+                        stats.percentage >= currentReward.targetPercentage ? '#22c55e' : '#f59e0b',
+                    }}
+                  />
+                </div>
+                <div className="mt-2 p-3 bg-yellow-50 rounded-2xl">
+                  <p className="text-sm text-yellow-700 font-medium">🎁 달성 보상</p>
+                  <p className="text-gray-800 font-bold mt-1">{currentReward.description}</p>
+                </div>
+                {stats.percentage >= currentReward.targetPercentage && (
+                  <div className="p-3 bg-green-50 rounded-2xl border-2 border-green-200 text-center">
+                    <p className="text-green-700 font-bold">🎉 보상 달성! 축하해요!</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => deleteReward(currentReward.id)}
+                  className="text-xs text-gray-400 hover:text-red-400 transition-colors"
+                >
+                  보상 삭제
+                </button>
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm text-center py-4">
+                보상을 설정하면 가족이 더 신나게 목표를 달성해요! 🎯
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Member Cards ── */}
+        <div>
+          <h2 className="font-bold text-gray-700 text-sm mb-3 px-1">👨‍👩‍👧‍👦 가족별 목표</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {members.map((member) => {
+              const memberGoals = getMemberGoals(member.id, viewMode);
+              const mStat = stats.memberStats.find((s) => s.memberId === member.id);
+              return (
+                <MemberCard
+                  key={member.id}
+                  member={member}
+                  goals={memberGoals}
+                  percentage={mStat?.percentage ?? 0}
+                  completedCount={mStat?.completedGoals ?? 0}
+                  viewMode={viewMode}
+                  isGoalCompleted={isGoalCompleted}
+                  onToggleGoal={toggleCompletion}
+                  onDeleteGoal={deleteGoal}
+                  onAddGoal={(id) => openAddGoal(id)}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Future features teaser ── */}
+        <div className="rounded-3xl border-2 border-dashed border-gray-200 p-5 text-center">
+          <p className="text-gray-400 text-sm font-medium">💌 마음카드 &nbsp;·&nbsp; ⭐ 칭찬스티커 &nbsp;·&nbsp; 🎯 가족 미션</p>
+          <p className="text-xs text-gray-300 mt-1">곧 업데이트 예정이에요!</p>
+        </div>
+      </main>
+
+      {/* ── Modals ── */}
+      {showGoalModal && (
+        <GoalModal
+          members={members}
+          defaultMemberId={defaultMemberId}
+          onClose={() => setShowGoalModal(false)}
+          onSave={handleSaveGoal}
+        />
+      )}
+
+      {showRewardModal && (
+        <RewardModal
+          existing={editingReward}
+          onClose={() => {
+            setShowRewardModal(false);
+            setEditingReward(undefined);
+          }}
+          onSave={handleSaveReward}
+        />
+      )}
+
+      {/* ── Celebration ── */}
+      {showCelebration && (
+        <CelebrationEffect onClose={() => setShowCelebration(false)} />
+      )}
+    </div>
+  );
+}
