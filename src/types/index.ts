@@ -11,9 +11,9 @@ export interface Member {
   name: string;
   role: string;
   icon: string;
-  color: string;        // Tailwind text/border color class or hex
-  bgColor: string;      // Tailwind bg color class or hex
-  bgLightColor: string; // Lighter bg for cards
+  color: string;
+  bgColor: string;
+  bgLightColor: string;
 }
 
 export interface Goal {
@@ -22,7 +22,7 @@ export interface Goal {
   category: string;
   content: string;
   repeatType: RepeatType;
-  createdAt: string; // ISO string
+  createdAt: string;
   isActive: boolean;
 }
 
@@ -30,16 +30,23 @@ export interface GoalCompletion {
   id: string;
   goalId: string;
   memberId: string;
-  completedAt: string; // ISO string
-  period: string;      // YYYY-MM-DD (daily) | YYYY-WXX (weekly) | YYYY-MM (monthly)
+  completedAt: string;
+  period: string;
 }
 
 export interface Reward {
   id: string;
   period: RewardPeriod;
-  targetPercentage: number; // 0-100
+  targetPercentage: number;
   description: string;
-  createdAt: string; // ISO string
+  createdAt: string;
+}
+
+export interface Note {
+  id: string;
+  memberId: string;
+  content: string;
+  createdAt: string;
 }
 
 // =====================
@@ -51,6 +58,7 @@ export interface AppData {
   goals: Goal[];
   completions: GoalCompletion[];
   rewards: Reward[];
+  notes: Note[];
 }
 
 // =====================
@@ -78,39 +86,4 @@ export interface FamilyStats {
   completedGoals: number;
   percentage: number;
   memberStats: MemberStats[];
-}
-
-// =====================
-// Future Extension Types
-// =====================
-
-// 마음카드 (Heart Card) - 가족에게 보내는 감사/사랑 메시지
-export interface HeartCard {
-  id: string;
-  fromMemberId: string;
-  toMemberId: string;
-  message: string;
-  emoji: string;
-  createdAt: string;
-}
-
-// 칭찬 스티커 (Praise Sticker)
-export interface PraiseSticker {
-  id: string;
-  fromMemberId: string;
-  toMemberId: string;
-  sticker: string;
-  reason: string;
-  createdAt: string;
-}
-
-// 가족 미션 (Family Mission)
-export interface FamilyMission {
-  id: string;
-  title: string;
-  description: string;
-  reward: string;
-  targetDate: string;
-  isCompleted: boolean;
-  createdAt: string;
 }

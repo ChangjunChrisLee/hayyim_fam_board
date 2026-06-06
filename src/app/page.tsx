@@ -6,7 +6,9 @@ import { useAppData } from '@/hooks/useAppData';
 import MemberCard from '@/components/MemberCard';
 import GoalModal from '@/components/GoalModal';
 import RewardModal from '@/components/RewardModal';
-import type { ViewMode, Goal, Reward } from '@/types';
+import NoteBoard from '@/components/NoteBoard';
+import GoalCheckEffect from '@/components/GoalCheckEffect';
+import type { ViewMode, Goal, Reward, Member } from '@/types';
 import { getEncouragementMessage } from '@/lib/constants';
 
 const CelebrationEffect = dynamic(() => import('@/components/CelebrationEffect'), { ssr: false });
@@ -18,21 +20,19 @@ const VIEW_TABS: { key: ViewMode; label: string }[] = [
 ];
 
 const SYNC_LABEL: Record<string, string> = {
-  idle: '☁️ 저장',
-  saving: '저장 중...',
-  saved: '✅ 저장됨!',
-  error: '❌ 오류',
-  loading: '불러오는 중...',
+  idle: '☁️ 저장', saving: '저장 중...', saved: '✅ 저장됨!', error: '❌ 오류', loading: '불러오는 중...',
 };
 
 export default function Home() {
   const {
-    members, goals, rewards,
+    members, goals, rewards, notes,
     viewMode, setViewMode, isLoaded,
+    navigatePeriod, goToToday, isCurrentPeriod, periodLabel,
     cloudEnabled, syncStatus, syncToCloud,
     addGoal, deleteGoal,
     toggleCompletion, isGoalCompleted,
     addReward, updateReward, deleteReward,
+    addNote, deleteNote,
     getStats, getMemberGoals,
   } = useAppData();
 
@@ -41,6 +41,7 @@ export default function Home() {
   const [defaultMemberId, setDefaultMemberId] = useState<string | undefined>();
   const [editingReward, setEditingReward] = useState<Reward | undefined>();
   const [showCelebration, setShowCelebration] = useState(false);
+  const [checkEffectMember, setCheckEffectMember] = useState<Member | null>(null);
   const [encouragement, setEncouragement] = useState('');
   const [prevPercentage, setPrevPercentage] = useState<number | null>(null);
 
@@ -97,90 +98,81 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-10">
-      {/* ── Header ── */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md shadow-card">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-2">
           <span className="text-3xl">🌟</span>
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-extrabold text-gray-800 truncate leading-tight">
-              하임이네 목표 달성 보드
-            </h1>
+            <h1 className="text-base font-extrabold text-gray-800 truncate leading-tight">하임이네 목표 달성 보드</h1>
             <p className="text-xs text-gray-500 truncate">{encouragement}</p>
           </div>
-
-          {/* Cloud Save Button */}
           {cloudEnabled && (
-            <button
-              onClick={syncToCloud}
-              disabled={syncStatus === 'saving' || syncStatus === 'loading'}
+            <button onClick={syncToCloud} disabled={syncStatus === 'saving' || syncStatus === 'loading'}
               className={`flex-shrink-0 px-3 py-2 rounded-2xl text-sm font-bold transition-all disabled:opacity-60 ${
-                syncStatus === 'saved'
-                  ? 'bg-green-100 text-green-700'
-                  : syncStatus === 'error'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-              }`}
-            >
+                syncStatus === 'saved' ? 'bg-green-100 text-green-700'
+                : syncStatus === 'error' ? 'bg-red-100 text-red-700'
+                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+              }`}>
               {SYNC_LABEL[syncStatus] ?? '☁️ 저장'}
             </button>
           )}
-
-          {/* Add goal */}
-          <button
-            onClick={() => openAddGoal()}
-            className="flex-shrink-0 px-3 py-2 rounded-2xl bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors"
-          >
+          <button onClick={() => openAddGoal()}
+            className="flex-shrink-0 px-3 py-2 rounded-2xl bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors">
             + 목표
           </button>
         </div>
 
-        {/* Cloud hint */}
         {cloudEnabled && syncStatus === 'idle' && (
-          <p className="text-center text-xs text-gray-400 pb-1">
-            변경 후 ☁️ 저장을 눌러야 구글 시트에 반영돼요
-          </p>
+          <p className="text-center text-xs text-gray-400 pb-1">변경 후 ☁️ 저장을 눌러야 구글 시트에 반영돼요</p>
         )}
 
-        {/* Tab bar */}
-        <div className="max-w-4xl mx-auto px-4 pb-3">
+        <div className="max-w-4xl mx-auto px-4 pb-2">
           <div className="grid grid-cols-3 gap-1.5 bg-gray-100 rounded-2xl p-1">
             {VIEW_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setViewMode(tab.key)}
+              <button key={tab.key} onClick={() => setViewMode(tab.key)}
                 className={`py-2 rounded-xl text-sm font-semibold transition-all ${
-                  viewMode === tab.key
-                    ? 'bg-white shadow-card text-gray-800'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
+                  viewMode === tab.key ? 'bg-white shadow-card text-gray-800' : 'text-gray-500 hover:text-gray-700'
+                }`}>
                 {tab.label}
               </button>
             ))}
           </div>
         </div>
+
+        <div className="max-w-4xl mx-auto px-4 pb-3 flex items-center justify-between gap-2">
+          <button onClick={() => navigatePeriod('prev')}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-lg">
+            ‹
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700">{periodLabel}</span>
+            {!isCurrentPeriod && (
+              <button onClick={goToToday}
+                className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium hover:bg-blue-200 transition-colors">
+                오늘
+              </button>
+            )}
+          </div>
+          <button onClick={() => navigatePeriod('next')}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors text-lg">
+            ›
+          </button>
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 pt-5 space-y-5">
-        {/* ── Family Progress Card ── */}
+        <NoteBoard members={members} notes={notes} onAdd={addNote} onDelete={deleteNote} />
         <div className="rounded-3xl overflow-hidden shadow-soft bg-white">
           <div className="p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h2 className="font-bold text-gray-800 text-base">🏠 우리 가족 달성률</h2>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  전체 {stats.completedGoals}/{stats.totalGoals}개 완료
-                </p>
+                <p className="text-sm text-gray-500 mt-0.5">전체 {stats.completedGoals}/{stats.totalGoals}개 완료</p>
               </div>
-              <div className="text-3xl font-extrabold" style={{ color: progressColor }}>
-                {stats.percentage}%
-              </div>
+              <div className="text-3xl font-extrabold" style={{ color: progressColor }}>{stats.percentage}%</div>
             </div>
             <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${stats.percentage}%`, backgroundColor: progressColor }}
-              />
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${stats.percentage}%`, backgroundColor: progressColor }} />
             </div>
             <div className="grid grid-cols-5 gap-2 mt-4">
               {members.map((m) => {
@@ -189,9 +181,7 @@ export default function Home() {
                 return (
                   <div key={m.id} className="flex flex-col items-center gap-1">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
-                      style={{ backgroundColor: m.bgColor }}>
-                      {m.icon}
-                    </div>
+                      style={{ backgroundColor: m.bgColor }}>{m.icon}</div>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-500"
                         style={{ width: `${pct}%`, backgroundColor: m.color }} />
@@ -204,34 +194,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Reward Card ── */}
         <div className="rounded-3xl overflow-hidden shadow-soft bg-white">
           <div className="p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-gray-800 text-base">🏆 보상</h2>
-              <button
-                onClick={() => { setEditingReward(currentReward); setShowRewardModal(true); }}
-                className="text-sm px-3 py-1.5 rounded-xl bg-yellow-50 text-yellow-700 font-medium hover:bg-yellow-100 transition-colors"
-              >
+              <button onClick={() => { setEditingReward(currentReward); setShowRewardModal(true); }}
+                className="text-sm px-3 py-1.5 rounded-xl bg-yellow-50 text-yellow-700 font-medium hover:bg-yellow-100 transition-colors">
                 {currentReward ? '✏️ 수정' : '+ 보상 설정'}
               </button>
             </div>
             {currentReward ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">기준 달성률</span>
-                  <span className="font-bold text-yellow-600">{currentReward.targetPercentage}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">현재 달성률</span>
-                  <span className="font-bold" style={{ color: progressColor }}>{stats.percentage}%</span>
+                  <span className="text-sm text-gray-600">목표 달성률</span>
+                  <span className="font-bold" style={{ color: stats.percentage >= currentReward.targetPercentage ? '#22c55e' : '#f59e0b' }}>
+                    {stats.percentage}% / {currentReward.targetPercentage}%
+                  </span>
                 </div>
                 <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${Math.min(100, (stats.percentage / currentReward.targetPercentage) * 100)}%`,
-                      backgroundColor: stats.percentage >= currentReward.targetPercentage ? '#22c55e' : '#f59e0b',
-                    }} />
+                  <div className="h-full rounded-full transition-all duration-700 bg-yellow-400"
+                    style={{ width: `${Math.min(100, (stats.percentage / currentReward.targetPercentage) * 100)}%` }} />
                 </div>
                 <div className="mt-2 p-3 bg-yellow-50 rounded-2xl">
                   <p className="text-sm text-yellow-700 font-medium">🎁 달성 보상</p>
@@ -248,14 +230,11 @@ export default function Home() {
                 </button>
               </div>
             ) : (
-              <p className="text-gray-400 text-sm text-center py-4">
-                보상을 설정하면 가족이 더 신나게 목표를 달성해요! 🎯
-              </p>
+              <p className="text-gray-400 text-sm text-center py-4">보상을 설정하면 가족이 더 신나게 목표를 달성해요! 🎯</p>
             )}
           </div>
         </div>
 
-        {/* ── Member Cards ── */}
         <div>
           <h2 className="font-bold text-gray-700 text-sm mb-3 px-1">👨‍👩‍👧‍👦 가족별 목표</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -270,8 +249,13 @@ export default function Home() {
                   percentage={mStat?.percentage ?? 0}
                   completedCount={mStat?.completedGoals ?? 0}
                   viewMode={viewMode}
+                  readOnly={!isCurrentPeriod}
                   isGoalCompleted={isGoalCompleted}
-                  onToggleGoal={async (g) => toggleCompletion(g)}
+                  onToggleGoal={async (g) => {
+                    const wasDone = isGoalCompleted(g);
+                    toggleCompletion(g);
+                    if (!wasDone) setCheckEffectMember(member);
+                  }}
                   onDeleteGoal={async (id) => deleteGoal(id)}
                   onAddGoal={(id) => openAddGoal(id)}
                 />
@@ -280,11 +264,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Future features ── */}
-        <div className="rounded-3xl border-2 border-dashed border-gray-200 p-5 text-center">
-          <p className="text-gray-400 text-sm font-medium">💌 마음카드 &nbsp;·&nbsp; ⭐ 칭찬스티커 &nbsp;·&nbsp; 🎯 가족 미션</p>
-          <p className="text-xs text-gray-300 mt-1">곧 업데이트 예정이에요!</p>
-        </div>
       </main>
 
       {showGoalModal && (
@@ -297,6 +276,14 @@ export default function Home() {
           onSave={handleSaveReward} />
       )}
       {showCelebration && <CelebrationEffect onClose={() => setShowCelebration(false)} />}
+      {checkEffectMember && (
+        <GoalCheckEffect
+          memberIcon={checkEffectMember.icon}
+          memberColor={checkEffectMember.color}
+          memberName={checkEffectMember.name}
+          onDone={() => setCheckEffectMember(null)}
+        />
+      )}
     </div>
   );
 }
