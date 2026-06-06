@@ -17,24 +17,23 @@ const VIEW_TABS: { key: ViewMode; label: string }[] = [
   { key: 'monthly', label: '이번 달 🗓️' },
 ];
 
+const SYNC_LABEL: Record<string, string> = {
+  idle: '☁️ 저장',
+  saving: '저장 중...',
+  saved: '✅ 저장됨!',
+  error: '❌ 오류',
+  loading: '불러오는 중...',
+};
+
 export default function Home() {
   const {
-    members,
-    goals,
-    rewards,
-    viewMode,
-    setViewMode,
-    isLoaded,
-    useLocalStorage,
-    addGoal,
-    deleteGoal,
-    toggleCompletion,
-    isGoalCompleted,
-    addReward,
-    updateReward,
-    deleteReward,
-    getStats,
-    getMemberGoals,
+    members, goals, rewards,
+    viewMode, setViewMode, isLoaded,
+    cloudEnabled, syncStatus, syncToCloud,
+    addGoal, deleteGoal,
+    toggleCompletion, isGoalCompleted,
+    addReward, updateReward, deleteReward,
+    getStats, getMemberGoals,
   } = useAppData();
 
   const [showGoalModal, setShowGoalModal] = useState(false);
@@ -48,12 +47,10 @@ export default function Home() {
   const stats = getStats(viewMode);
   const currentReward = rewards.find((r) => r.period === viewMode);
 
-  // Refresh encouragement message when percentage changes
   useEffect(() => {
     setEncouragement(getEncouragementMessage(stats.percentage));
   }, [stats.percentage]);
 
-  // Celebration when 100% hit
   useEffect(() => {
     if (!isLoaded) return;
     if (stats.totalGoals > 0 && stats.percentage === 100 && prevPercentage !== 100) {
@@ -68,33 +65,24 @@ export default function Home() {
   }
 
   const handleSaveGoal = useCallback(
-    async (data: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => {
-      await addGoal(data);
-    },
+    async (data: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => { addGoal(data); },
     [addGoal]
   );
 
   const handleSaveReward = useCallback(
     async (data: Omit<Reward, 'id' | 'createdAt'>) => {
-      if (editingReward) {
-        await updateReward(editingReward.id, data);
-      } else {
-        await addReward(data);
-      }
+      if (editingReward) updateReward(editingReward.id, data);
+      else addReward(data);
       setEditingReward(undefined);
     },
     [addReward, updateReward, editingReward]
   );
 
-  // Progress bar colour based on percentage
   const progressColor =
-    stats.percentage === 100
-      ? '#22c55e'
-      : stats.percentage >= 70
-      ? '#3b82f6'
-      : stats.percentage >= 40
-      ? '#f59e0b'
-      : '#f87171';
+    stats.percentage === 100 ? '#22c55e'
+    : stats.percentage >= 70 ? '#3b82f6'
+    : stats.percentage >= 40 ? '#f59e0b'
+    : '#f87171';
 
   if (!isLoaded) {
     return (
@@ -111,7 +99,7 @@ export default function Home() {
     <div className="min-h-screen pb-10">
       {/* ── Header ── */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md shadow-card">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-2">
           <span className="text-3xl">🌟</span>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-extrabold text-gray-800 truncate leading-tight">
@@ -119,7 +107,25 @@ export default function Home() {
             </h1>
             <p className="text-xs text-gray-500 truncate">{encouragement}</p>
           </div>
-          {/* Global add goal */}
+
+          {/* Cloud Save Button */}
+          {cloudEnabled && (
+            <button
+              onClick={syncToCloud}
+              disabled={syncStatus === 'saving' || syncStatus === 'loading'}
+              className={`flex-shrink-0 px-3 py-2 rounded-2xl text-sm font-bold transition-all disabled:opacity-60 ${
+                syncStatus === 'saved'
+                  ? 'bg-green-100 text-green-700'
+                  : syncStatus === 'error'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+              }`}
+            >
+              {SYNC_LABEL[syncStatus] ?? '☁️ 저장'}
+            </button>
+          )}
+
+          {/* Add goal */}
           <button
             onClick={() => openAddGoal()}
             className="flex-shrink-0 px-3 py-2 rounded-2xl bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors"
@@ -127,6 +133,13 @@ export default function Home() {
             + 목표
           </button>
         </div>
+
+        {/* Cloud hint */}
+        {cloudEnabled && syncStatus === 'idle' && (
+          <p className="text-center text-xs text-gray-400 pb-1">
+            변경 후 ☁️ 저장을 눌러야 구글 시트에 반영돼요
+          </p>
+        )}
 
         {/* Tab bar */}
         <div className="max-w-4xl mx-auto px-4 pb-3">
@@ -149,19 +162,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 pt-5 space-y-5">
-        {/* ── Storage badge ── */}
-        {useLocalStorage && (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
-            <span>💾</span>
-            <span>
-              Google Sheets 미연결 — 데이터가 이 기기에만 저장돼요.{' '}
-              <a href="#" className="underline font-medium">
-                설정 방법 보기
-              </a>
-            </span>
-          </div>
-        )}
-
         {/* ── Family Progress Card ── */}
         <div className="rounded-3xl overflow-hidden shadow-soft bg-white">
           <div className="p-5">
@@ -172,40 +172,29 @@ export default function Home() {
                   전체 {stats.completedGoals}/{stats.totalGoals}개 완료
                 </p>
               </div>
-              <div
-                className="text-3xl font-extrabold"
-                style={{ color: progressColor }}
-              >
+              <div className="text-3xl font-extrabold" style={{ color: progressColor }}>
                 {stats.percentage}%
               </div>
             </div>
-
-            {/* Main progress bar */}
             <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-700"
                 style={{ width: `${stats.percentage}%`, backgroundColor: progressColor }}
               />
             </div>
-
-            {/* Member mini progress */}
             <div className="grid grid-cols-5 gap-2 mt-4">
               {members.map((m) => {
                 const mStat = stats.memberStats.find((s) => s.memberId === m.id);
                 const pct = mStat?.percentage ?? 0;
                 return (
                   <div key={m.id} className="flex flex-col items-center gap-1">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
-                      style={{ backgroundColor: m.bgColor }}
-                    >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: m.bgColor }}>
                       {m.icon}
                     </div>
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, backgroundColor: m.color }}
-                      />
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%`, backgroundColor: m.color }} />
                     </div>
                     <span className="text-xs text-gray-500 font-medium">{pct}%</span>
                   </div>
@@ -221,43 +210,28 @@ export default function Home() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-gray-800 text-base">🏆 보상</h2>
               <button
-                onClick={() => {
-                  setEditingReward(currentReward);
-                  setShowRewardModal(true);
-                }}
+                onClick={() => { setEditingReward(currentReward); setShowRewardModal(true); }}
                 className="text-sm px-3 py-1.5 rounded-xl bg-yellow-50 text-yellow-700 font-medium hover:bg-yellow-100 transition-colors"
               >
                 {currentReward ? '✏️ 수정' : '+ 보상 설정'}
               </button>
             </div>
-
             {currentReward ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">기준 달성률</span>
-                  <span className="font-bold text-yellow-600">
-                    {currentReward.targetPercentage}%
-                  </span>
+                  <span className="font-bold text-yellow-600">{currentReward.targetPercentage}%</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">현재 달성률</span>
-                  <span className="font-bold" style={{ color: progressColor }}>
-                    {stats.percentage}%
-                  </span>
+                  <span className="font-bold" style={{ color: progressColor }}>{stats.percentage}%</span>
                 </div>
-                {/* Progress toward reward */}
                 <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
+                  <div className="h-full rounded-full transition-all duration-700"
                     style={{
-                      width: `${Math.min(
-                        100,
-                        (stats.percentage / currentReward.targetPercentage) * 100
-                      )}%`,
-                      backgroundColor:
-                        stats.percentage >= currentReward.targetPercentage ? '#22c55e' : '#f59e0b',
-                    }}
-                  />
+                      width: `${Math.min(100, (stats.percentage / currentReward.targetPercentage) * 100)}%`,
+                      backgroundColor: stats.percentage >= currentReward.targetPercentage ? '#22c55e' : '#f59e0b',
+                    }} />
                 </div>
                 <div className="mt-2 p-3 bg-yellow-50 rounded-2xl">
                   <p className="text-sm text-yellow-700 font-medium">🎁 달성 보상</p>
@@ -268,10 +242,8 @@ export default function Home() {
                     <p className="text-green-700 font-bold">🎉 보상 달성! 축하해요!</p>
                   </div>
                 )}
-                <button
-                  onClick={() => deleteReward(currentReward.id)}
-                  className="text-xs text-gray-400 hover:text-red-400 transition-colors"
-                >
+                <button onClick={() => deleteReward(currentReward.id)}
+                  className="text-xs text-gray-400 hover:text-red-400 transition-colors">
                   보상 삭제
                 </button>
               </div>
@@ -299,8 +271,8 @@ export default function Home() {
                   completedCount={mStat?.completedGoals ?? 0}
                   viewMode={viewMode}
                   isGoalCompleted={isGoalCompleted}
-                  onToggleGoal={toggleCompletion}
-                  onDeleteGoal={deleteGoal}
+                  onToggleGoal={async (g) => toggleCompletion(g)}
+                  onDeleteGoal={async (id) => deleteGoal(id)}
                   onAddGoal={(id) => openAddGoal(id)}
                 />
               );
@@ -308,38 +280,23 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Future features teaser ── */}
+        {/* ── Future features ── */}
         <div className="rounded-3xl border-2 border-dashed border-gray-200 p-5 text-center">
           <p className="text-gray-400 text-sm font-medium">💌 마음카드 &nbsp;·&nbsp; ⭐ 칭찬스티커 &nbsp;·&nbsp; 🎯 가족 미션</p>
           <p className="text-xs text-gray-300 mt-1">곧 업데이트 예정이에요!</p>
         </div>
       </main>
 
-      {/* ── Modals ── */}
       {showGoalModal && (
-        <GoalModal
-          members={members}
-          defaultMemberId={defaultMemberId}
-          onClose={() => setShowGoalModal(false)}
-          onSave={handleSaveGoal}
-        />
+        <GoalModal members={members} defaultMemberId={defaultMemberId}
+          onClose={() => setShowGoalModal(false)} onSave={handleSaveGoal} />
       )}
-
       {showRewardModal && (
-        <RewardModal
-          existing={editingReward}
-          onClose={() => {
-            setShowRewardModal(false);
-            setEditingReward(undefined);
-          }}
-          onSave={handleSaveReward}
-        />
+        <RewardModal existing={editingReward}
+          onClose={() => { setShowRewardModal(false); setEditingReward(undefined); }}
+          onSave={handleSaveReward} />
       )}
-
-      {/* ── Celebration ── */}
-      {showCelebration && (
-        <CelebrationEffect onClose={() => setShowCelebration(false)} />
-      )}
+      {showCelebration && <CelebrationEffect onClose={() => setShowCelebration(false)} />}
     </div>
   );
 }

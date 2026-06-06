@@ -34,11 +34,20 @@ async function readAll(): Promise<DataStore> {
 async function writeAll(data: DataStore): Promise<void> {
   const url = process.env.APPS_SCRIPT_URL;
   if (!url) throw new Error('APPS_SCRIPT_URL not set');
-  await fetch(url, {
+
+  // Google Apps Script는 POST 시 302 리다이렉트를 함.
+  // redirect: 'follow'로 따라가되, Content-Type을 text/plain으로 설정해야
+  // doPost의 e.postData.contents로 정상 수신됨.
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(data),
+    redirect: 'follow',
   });
+
+  if (!res.ok) {
+    console.error('[AppsScript] write failed:', res.status, await res.text());
+  }
 }
 
 export class AppsScriptStorage implements IStorage {
