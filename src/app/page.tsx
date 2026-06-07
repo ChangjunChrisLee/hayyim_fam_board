@@ -8,7 +8,9 @@ import GoalModal from '@/components/GoalModal';
 import RewardModal from '@/components/RewardModal';
 import NoteBoard from '@/components/NoteBoard';
 import FamilyTree from '@/components/FamilyTree';
+import ProgressGrid from '@/components/ProgressGrid';
 import FamilyMissionCard from '@/components/FamilyMissionCard';
+import CharacterPicker from '@/components/CharacterPicker';
 import FamilyMissionModal from '@/components/FamilyMissionModal';
 import GoalCheckEffect from '@/components/GoalCheckEffect';
 import type { ViewMode, Goal, Reward, Member, FamilyMission } from '@/types';
@@ -29,13 +31,15 @@ const SYNC_LABEL: Record<string, string> = {
 export default function Home() {
   const {
     members, goals, completions, rewards, notes,
+    selectedDate,
     viewMode, setViewMode, isLoaded,
     navigatePeriod, goToToday, isCurrentPeriod, periodLabel,
-    cloudEnabled, syncStatus, syncToCloud,
-    addGoal, deleteGoal,
+    cloudEnabled, syncStatus, syncToCloud, refreshFromCloud,
+    addGoal, updateGoal, deleteGoal,
     toggleCompletion, isGoalCompleted,
     addReward, updateReward, deleteReward,
     missions, addMission, updateMission, deleteMission, contributeMission, undoContribution,
+    updateMemberIcon,
     addNote, deleteNote,
     getStats, getMemberGoals,
   } = useAppData();
@@ -43,6 +47,9 @@ export default function Home() {
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
   const [defaultMemberId, setDefaultMemberId] = useState<string | undefined>();
+  const [defaultRepeatType, setDefaultRepeatType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [editingGoal, setEditingGoal] = useState<Goal | undefined>();
+  const [pickingMember, setPickingMember] = useState<Member | null>(null);
   const [editingReward, setEditingReward] = useState<Reward | undefined>();
   const [showMissionModal, setShowMissionModal] = useState(false);
   const [editingMission, setEditingMission] = useState<FamilyMission | undefined>();
@@ -68,13 +75,25 @@ export default function Home() {
   }, [stats.percentage, stats.totalGoals, isLoaded, prevPercentage]);
 
   function openAddGoal(memberId?: string) {
+    setEditingGoal(undefined);
     setDefaultMemberId(memberId);
+    setDefaultRepeatType(viewMode);
+    setShowGoalModal(true);
+  }
+
+  function openEditGoal(goal: Goal) {
+    setEditingGoal(goal);
+    setDefaultRepeatType(goal.repeatType);
     setShowGoalModal(true);
   }
 
   const handleSaveGoal = useCallback(
-    async (data: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => { addGoal(data); },
-    [addGoal]
+    async (data: Omit<Goal, 'id' | 'createdAt' | 'isActive'>) => {
+      if (editingGoal) updateGoal(editingGoal.id, data);
+      else addGoal(data);
+      setEditingGoal(undefined);
+    },
+    [addGoal, updateGoal, editingGoal]
   );
 
   const handleSaveReward = useCallback(
@@ -113,6 +132,13 @@ export default function Home() {
             <p className="text-xs text-gray-500 truncate">{encouragement}</p>
           </div>
           {cloudEnabled && (
+            <button onClick={refreshFromCloud} disabled={syncStatus === 'saving' || syncStatus === 'loading'}
+              className="flex-shrink-0 px-3 py-2 rounded-2xl text-sm font-bold transition-all disabled:opacity-60 bg-gray-100 text-gray-600 hover:bg-gray-200"
+              title="최신 데이터 불러오기">
+              {syncStatus === 'loading' ? '⏳' : '🔄'}
+            </button>
+          )}
+          {cloudEnabled && (
             <button onClick={syncToCloud} disabled={syncStatus === 'saving' || syncStatus === 'loading'}
               className={`flex-shrink-0 px-3 py-2 rounded-2xl text-sm font-bold transition-all disabled:opacity-60 ${
                 syncStatus === 'saved' ? 'bg-green-100 text-green-700'
@@ -122,10 +148,7 @@ export default function Home() {
               {SYNC_LABEL[syncStatus] ?? '☁️ 저장'}
             </button>
           )}
-          <button onClick={() => openAddGoal()}
-            className="flex-shrink-0 px-3 py-2 rounded-2xl bg-blue-100 text-blue-700 text-sm font-bold hover:bg-blue-200 transition-colors">
-            + 목표
-          </button>
+
         </div>
 
         {cloudEnabled && syncStatus === 'idle' && (
@@ -244,6 +267,16 @@ export default function Home() {
 
         <FamilyTree completions={completions} members={members} />
 
+        {(viewMode === 'weekly' || viewMode === 'monthly') && (
+          <ProgressGrid
+            mode={viewMode}
+            selectedDate={selectedDate}
+            goals={goals}
+            completions={completions}
+            members={members}
+          />
+        )}
+
         <FamilyMissionCard
           mission={activeMission ?? null}
           members={members}
@@ -268,13 +301,15 @@ export default function Home() {
                   percentage={mStat?.percentage ?? 0}
                   completedCount={mStat?.completedGoals ?? 0}
                   viewMode={viewMode}
-                  readOnly={!isCurrentPeriod}
+                  readOnly={false}
                   isGoalCompleted={isGoalCompleted}
                   onToggleGoal={async (g) => {
                     const wasDone = isGoalCompleted(g);
                     toggleCompletion(g);
                     if (!wasDone) setCheckEffectMember(member);
                   }}
+                  onEditIcon={() => setPickingMember(member)}
+                  onEditGoal={(g) => openEditGoal(g)}
                   onDeleteGoal={async (id) => deleteGoal(id)}
                   onAddGoal={(id) => openAddGoal(id)}
                 />
@@ -286,8 +321,9 @@ export default function Home() {
       </main>
 
       {showGoalModal && (
-        <GoalModal members={members} defaultMemberId={defaultMemberId}
-          onClose={() => setShowGoalModal(false)} onSave={handleSaveGoal} />
+        <GoalModal members={members} defaultMemberId={defaultMemberId} defaultRepeatType={defaultRepeatType}
+          existingGoal={editingGoal}
+          onClose={() => { setShowGoalModal(false); setEditingGoal(undefined); }} onSave={handleSaveGoal} />
       )}
       {showRewardModal && (
         <RewardModal existing={editingReward}
@@ -303,6 +339,13 @@ export default function Home() {
             else addMission(data);
             setEditingMission(undefined);
           }}
+        />
+      )}
+      {pickingMember && (
+        <CharacterPicker
+          member={pickingMember}
+          onClose={() => setPickingMember(null)}
+          onSelect={(icon) => updateMemberIcon(pickingMember.id, icon)}
         />
       )}
       {showCelebration && <CelebrationEffect onClose={() => setShowCelebration(false)} />}

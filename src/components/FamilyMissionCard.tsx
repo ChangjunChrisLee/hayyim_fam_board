@@ -163,36 +163,43 @@ export default function FamilyMissionCard({ mission, members, onAdd, onEdit, onD
             );
           })}
 
-          <div className="grid grid-cols-5 gap-2">
+          <div className="flex flex-col gap-2">
             {members.map((m) => {
               const cnt = getMemberContributions(mission, m.id);
-              const ispressing = pressing === m.id;
               return (
-                <button key={m.id}
-                  onClick={() => handleContribute(m.id)}
-                  disabled={achieved}
-                  className={`flex flex-col items-center gap-1 p-2 rounded-2xl border-2 transition-all select-none
-                    ${achieved ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 hover:opacity-90'}
-                    ${ispressing ? 'scale-90' : 'scale-100'}`}
-                  style={{ borderColor: m.color, backgroundColor: m.bgColor }}>
-                  <span className="text-2xl leading-none">{m.icon}</span>
-                  <span className="text-xs font-bold leading-none" style={{ color: m.color }}>
-                    {m.name.replace('이', '').replace('문', '')}
+                <div key={m.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-2xl"
+                  style={{ backgroundColor: m.bgColor }}>
+                  {/* Avatar + name */}
+                  <span className="text-xl leading-none">{m.icon}</span>
+                  <span className="text-sm font-bold flex-1" style={{ color: m.color }}>
+                    {m.name}
                   </span>
-                  <span className="text-sm font-extrabold" style={{ color: m.color }}>
-                    {cnt > 0 ? cnt : ''}
-                  </span>
-                </button>
+                  {/* Count + buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onUndo(mission.id, m.id)}
+                      disabled={cnt === 0}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-lg font-bold transition-all active:scale-90 disabled:opacity-30"
+                      style={{ backgroundColor: 'white', color: m.color }}>
+                      −
+                    </button>
+                    <span className="w-6 text-center text-base font-extrabold" style={{ color: m.color }}>
+                      {cnt}
+                    </span>
+                    <button
+                      onClick={() => handleContribute(m.id)}
+                      disabled={achieved}
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-lg font-bold transition-all active:scale-90 disabled:opacity-30"
+                      style={{ backgroundColor: m.color, color: 'white' }}>
+                      +
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
         </div>
-
-        {!achieved && (
-          <p className="text-center text-xs text-gray-400 mt-3">
-            버튼을 눌러서 달성에 기여하세요! 👆
-          </p>
-        )}
 
         {/* Reward */}
         {mission.reward && (

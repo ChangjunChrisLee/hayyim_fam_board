@@ -13,14 +13,26 @@ interface Props {
   isGoalCompleted: (goal: Goal) => boolean;
   onToggleGoal: (goal: Goal) => Promise<void>;
   onDeleteGoal: (id: string) => Promise<void>;
+  onEditIcon: () => void;
+  onEditGoal: (goal: Goal) => void;
   onAddGoal: (memberId: string) => void;
 }
 
-const REPEAT_BADGE: Record<string, string> = { daily: '매일', weekly: '매주', monthly: '매달' };
+const VIEW_LABEL: Record<ViewMode, string> = {
+  daily: '매일 목표',
+  weekly: '매주 목표',
+  monthly: '매달 목표',
+};
+
+const EMPTY_MSG: Record<ViewMode, string> = {
+  daily: '오늘 매일 목표가 없어요 ✨',
+  weekly: '이번 주 매주 목표가 없어요 ✨',
+  monthly: '이번 달 매달 목표가 없어요 ✨',
+};
 
 export default function MemberCard({
   member, goals, percentage, completedCount, viewMode, readOnly = false,
-  isGoalCompleted, onToggleGoal, onDeleteGoal, onAddGoal,
+  isGoalCompleted, onToggleGoal, onDeleteGoal, onEditGoal, onAddGoal, onEditIcon,
 }: Props) {
   const [toggling, setToggling] = useState<string | null>(null);
 
@@ -36,11 +48,14 @@ export default function MemberCard({
   return (
     <div className="rounded-3xl overflow-hidden shadow-card hover:shadow-soft-lg transition-shadow"
       style={{ backgroundColor: member.bgLightColor }}>
+
+      {/* Header */}
       <div className="p-4 flex items-center gap-3" style={{ backgroundColor: member.bgColor }}>
-        <div className="relative">
+        <button onClick={onEditIcon} className="relative group flex-shrink-0" title="캐릭터 변경">
           <span className="text-4xl">{member.icon}</span>
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold">✎</span>
           {allDone && <span className="absolute -top-1 -right-1 text-lg animate-bounce-slow">🌟</span>}
-        </div>
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-gray-800 text-base">{member.name}</h3>
@@ -49,11 +64,14 @@ export default function MemberCard({
               {member.role}
             </span>
           </div>
-          <p className="text-sm text-gray-600 mt-0.5">{completedCount}/{goals.length}개 완료</p>
+          <p className="text-sm text-gray-600 mt-0.5">
+            {VIEW_LABEL[viewMode]} {completedCount}/{goals.length}개 완료
+          </p>
         </div>
         <div className="text-2xl font-bold" style={{ color: member.color }}>{percentage}%</div>
       </div>
 
+      {/* Progress bar */}
       <div className="px-4 pt-3">
         <div className="w-full h-3 bg-white rounded-full overflow-hidden shadow-inner">
           <div className="h-full rounded-full transition-all duration-700"
@@ -61,10 +79,11 @@ export default function MemberCard({
         </div>
       </div>
 
+      {/* Goal list */}
       <div className="p-4 space-y-2">
         {goals.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-4">
-            아직 목표가 없어요 ✨<br />
+            {EMPTY_MSG[viewMode]}<br />
             <span className="text-xs">아래 버튼으로 추가해봐요!</span>
           </p>
         ) : (
@@ -90,33 +109,36 @@ export default function MemberCard({
                   <p className={`text-sm font-medium leading-tight ${done ? 'line-through text-gray-500' : 'text-gray-800'}`}>
                     {goal.content}
                   </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: done ? 'rgba(255,255,255,0.5)' : member.bgColor, color: member.color }}>
-                      {goal.category}
-                    </span>
-                    <span className="text-xs text-gray-400">{REPEAT_BADGE[goal.repeatType]}</span>
-                  </div>
+                  <span className="inline-block text-xs px-2 py-0.5 rounded-full mt-1"
+                    style={{ backgroundColor: done ? 'rgba(255,255,255,0.5)' : member.bgColor, color: member.color }}>
+                    {goal.category}
+                  </span>
                 </div>
-                <button onClick={() => onDeleteGoal(goal.id)}
-                  className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors text-sm mt-0.5"
-                  aria-label="목표 삭제">✕</button>
+                <div className="flex-shrink-0 flex flex-col gap-1 mt-0.5">
+                  <button onClick={() => onEditGoal(goal)}
+                    className="text-gray-300 hover:text-blue-400 transition-colors text-xs leading-none"
+                    aria-label="목표 수정">✎</button>
+                  <button onClick={() => onDeleteGoal(goal.id)}
+                    className="text-gray-300 hover:text-red-400 transition-colors text-sm leading-none"
+                    aria-label="목표 삭제">✕</button>
+                </div>
               </div>
             );
           })
         )}
-        {allDone && (
+        {allDone && goals.length > 0 && (
           <div className="text-center py-2">
             <p className="text-sm font-bold" style={{ color: member.color }}>🎉 모든 목표 완료! 최고예요!</p>
           </div>
         )}
       </div>
 
+      {/* Add button */}
       <div className="px-4 pb-4">
         <button onClick={() => onAddGoal(member.id)}
           className="w-full py-2.5 rounded-2xl border-2 border-dashed text-sm font-medium transition-all hover:opacity-80"
           style={{ borderColor: member.color, color: member.color, backgroundColor: 'transparent' }}>
-          + 목표 추가하기
+          + {VIEW_LABEL[viewMode]} 추가하기
         </button>
       </div>
     </div>

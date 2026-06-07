@@ -78,8 +78,4 @@ export const isInViewPeriod = (completedAt: string, viewMode: 'daily' | 'weekly'
 export const isGoalInView = (
   goal: { repeatType: 'daily' | 'weekly' | 'monthly' },
   viewMode: 'daily' | 'weekly' | 'monthly'
-): boolean => {
-  if (viewMode === 'daily') return goal.repeatType === 'daily';
-  if (viewMode === 'weekly') return goal.repeatType === 'daily' || goal.repeatType === 'weekly';
-  return true;
-};
+): boolean => goal.repeatType === viewMode;

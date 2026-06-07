@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import type { Member, RepeatType } from '@/types';
+import type { Member, RepeatType, Goal } from '@/types';
 
 interface Props {
   members: Member[];
   defaultMemberId?: string;
+  defaultRepeatType?: RepeatType;
+  existingGoal?: Goal;
   onClose: () => void;
   onSave: (data: { memberId: string; category: string; content: string; repeatType: RepeatType }) => Promise<void>;
 }
@@ -22,11 +24,11 @@ const TEMPLATES: { icon: string; category: string; items: string[] }[] = [
   { icon: '🏠', category: '집안일', items: ['방 정리하기', '설거지하기', '청소기 돌리기', '빨래 개기'] },
 ];
 
-export default function GoalModal({ members, defaultMemberId, onClose, onSave }: Props) {
-  const [memberId, setMemberId] = useState(defaultMemberId ?? members[0]?.id ?? '');
-  const [category, setCategory] = useState('');
-  const [content, setContent] = useState('');
-  const [repeatType, setRepeatType] = useState<RepeatType>('daily');
+export default function GoalModal({ members, defaultMemberId, defaultRepeatType, existingGoal, onClose, onSave }: Props) {
+  const [memberId, setMemberId] = useState(existingGoal?.memberId ?? defaultMemberId ?? members[0]?.id ?? '');
+  const [category, setCategory] = useState(existingGoal?.category ?? '');
+  const [content, setContent] = useState(existingGoal?.content ?? '');
+  const [repeatType, setRepeatType] = useState<RepeatType>(existingGoal?.repeatType ?? defaultRepeatType ?? 'daily');
   const [saving, setSaving] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -52,8 +54,8 @@ export default function GoalModal({ members, defaultMemberId, onClose, onSave }:
         <div className="p-5 flex items-center gap-3" style={{ backgroundColor: selectedMember?.bgColor ?? '#E8F1FF' }}>
           <span className="text-4xl">{selectedMember?.icon ?? '🎯'}</span>
           <div>
-            <h2 className="text-lg font-bold text-gray-800">목표 추가하기</h2>
-            <p className="text-sm text-gray-600">새로운 목표를 만들어요!</p>
+            <h2 className="text-lg font-bold text-gray-800">{existingGoal ? '목표 수정하기' : '목표 추가하기'}</h2>
+            <p className="text-sm text-gray-600">{existingGoal ? '목표 내용을 수정해요!' : '새로운 목표를 만들어요!'}</p>
           </div>
           <button onClick={onClose} className="ml-auto text-gray-500 hover:text-gray-800 text-2xl leading-none">✕</button>
         </div>
@@ -122,17 +124,8 @@ export default function GoalModal({ members, defaultMemberId, onClose, onSave }:
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">🔄 반복 기준</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.entries(REPEAT_LABELS) as [RepeatType, string][]).map(([type, label]) => (
-                <button key={type} onClick={() => setRepeatType(type)}
-                  className={`py-3 rounded-2xl border-2 text-sm font-medium transition-all ${
-                    repeatType === type
-                      ? 'border-blue-400 bg-blue-50 text-blue-700 scale-105'
-                      : 'border-gray-100 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }`}>
-                  {label}
-                </button>
-              ))}
+            <div className="px-4 py-3 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-700 text-sm font-semibold">
+              {REPEAT_LABELS[repeatType]}
             </div>
           </div>
         </div>
@@ -145,7 +138,7 @@ export default function GoalModal({ members, defaultMemberId, onClose, onSave }:
           <button onClick={handleSave} disabled={!content.trim() || !category.trim() || saving}
             className="flex-1 py-3 rounded-2xl font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: selectedMember?.color ?? '#5B9BD5' }}>
-            {saving ? '저장 중...' : '🎯 목표 저장!'}
+            {saving ? '저장 중...' : existingGoal ? '✏️ 수정 완료!' : '🎯 목표 저장!'}
           </button>
         </div>
       </div>

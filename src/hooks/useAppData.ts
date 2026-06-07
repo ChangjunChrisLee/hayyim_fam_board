@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Goal, GoalCompletion, Reward, Note, ViewMode, FamilyStats, MemberStats, FamilyMission } from '@/types';
+import type { Goal, GoalCompletion, Reward, Note, ViewMode, FamilyStats, MemberStats, FamilyMission, Member } from '@/types';
 import { DEFAULT_MEMBERS, getCurrentPeriodKey, getPeriodKey, getPeriodLabel, isGoalInView } from '@/lib/constants';
 import { loadFromCloud, saveToCloud, isCloudEnabled, type DataStore } from '@/lib/clientStorage';
 
-const LS = { goals: 'hfb_goals', completions: 'hfb_completions', rewards: 'hfb_rewards', notes: 'hfb_notes', missions: 'hfb_missions' };
+const LS = { goals: 'hfb_goals', completions: 'hfb_completions', rewards: 'hfb_rewards', notes: 'hfb_notes', missions: 'hfb_missions', memberIcons: 'hfb_member_icons' };
 
 function lsGet<T>(key: string, fallback: T): T {
   try {
@@ -28,6 +28,7 @@ function lsSetAll(goals: Goal[], completions: GoalCompletion[], rewards: Reward[
 export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error' | 'loading';
 
 export function useAppData() {
+  const [members, setMembers] = useState<Member[]>(DEFAULT_MEMBERS);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [completions, setCompletions] = useState<GoalCompletion[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -70,6 +71,11 @@ export function useAppData() {
         setNotes(lsGet<Note[]>(LS.notes, []));
         setMissions(lsGet<FamilyMission[]>(LS.missions, []));
       }
+      // Load member icon overrides
+      const savedIcons = lsGet<Record<string, string>>(LS.memberIcons, {});
+      if (Object.keys(savedIcons).length > 0) {
+        setMembers(DEFAULT_MEMBERS.map((m) => ({ ...m, icon: savedIcons[m.id] ?? m.icon })));
+      }
       setSyncStatus('idle');
       setIsLoaded(true);
     }
@@ -96,6 +102,28 @@ export function useAppData() {
     }
   }, []);
 
+
+  const refreshFromCloud = useCallback(async () => {
+    if (!isCloudEnabled()) return;
+    setSyncStatus('loading');
+    try {
+      const cloud = await loadFromCloud();
+      if (cloud) {
+        const g = (cloud.goals ?? []) as Goal[];
+        const c = (cloud.completions ?? []) as GoalCompletion[];
+        const r = (cloud.rewards ?? []) as Reward[];
+        const n = (cloud.notes ?? []) as Note[];
+        const ms = (cloud.missions ?? []) as FamilyMission[];
+        setGoals(g); setCompletions(c); setRewards(r); setNotes(n); setMissions(ms);
+        lsSetAll(g, c, r, n, ms);
+      }
+      setSyncStatus('idle');
+    } catch {
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    }
+  }, []);
+
   function update(newGoals: Goal[], newCompletions: GoalCompletion[], newRewards: Reward[], newNotes?: Note[], newMissions?: FamilyMission[]) {
     setGoals(newGoals);
     setCompletions(newCompletions);
@@ -115,6 +143,15 @@ export function useAppData() {
     update(
       goalsRef.current.filter((g) => g.id !== id),
       completionsRef.current.filter((c) => c.goalId !== id),
+      rewardsRef.current
+    );
+  }, []);
+
+
+  const updateGoal = useCallback((id: string, updates: Partial<Omit<Goal, 'id' | 'createdAt'>>) => {
+    update(
+      goalsRef.current.map((g) => g.id === id ? { ...g, ...updates } : g),
+      completionsRef.current,
       rewardsRef.current
     );
   }, []);
@@ -199,6 +236,14 @@ export function useAppData() {
 
   const periodLabel = getPeriodLabel(selectedDate, viewMode);
 
+  const updateMemberIcon = useCallback((memberId: string, icon: string) => {
+    setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, icon } : m));
+    try {
+      const saved = lsGet<Record<string, string>>(LS.memberIcons, {});
+      localStorage.setItem(LS.memberIcons, JSON.stringify({ ...saved, [memberId]: icon }));
+    } catch {}
+  }, []);
+
   const addNote = useCallback((memberId: string, content: string) => {
     const newNote: Note = { id: uuidv4(), memberId, content, createdAt: new Date().toISOString() };
     const updated = [...notesRef.current, newNote];
@@ -261,9 +306,10 @@ export function useAppData() {
     viewMode, setViewMode, isLoaded,
     selectedDate, navigatePeriod, goToToday, isCurrentPeriod, periodLabel,
     cloudEnabled: isCloudEnabled(),
-    syncStatus, syncToCloud,
-    members: DEFAULT_MEMBERS,
-    addGoal, deleteGoal,
+    syncStatus, syncToCloud, refreshFromCloud,
+    members,
+    updateMemberIcon,
+    addGoal, updateGoal, deleteGoal,
     toggleCompletion, isGoalCompleted,
     addReward, updateReward, deleteReward,
     missions, addMission, updateMission, deleteMission, contributeMission, undoContribution,
