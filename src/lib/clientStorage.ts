@@ -4,6 +4,7 @@ export interface DataStore {
   rewards: unknown[];
   notes: unknown[];
   missions?: unknown[];
+  memberIcons?: Record<string, string>;
 }
 
 function getUrl(): string | null {

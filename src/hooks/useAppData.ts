@@ -44,6 +44,7 @@ export function useAppData() {
   const rewardsRef = useRef(rewards);
   const notesRef = useRef(notes);
   const missionsRef = useRef(missions);
+  const memberIconsRef = useRef<Record<string, string>>({});
   const selectedDateRef = useRef(selectedDate);
   goalsRef.current = goals;
   completionsRef.current = completions;
@@ -62,7 +63,13 @@ export function useAppData() {
         const r = (cloud.rewards ?? []) as Reward[];
         const n = (cloud.notes ?? []) as Note[];
         const ms = (cloud.missions ?? []) as FamilyMission[];
+        const icons = (cloud.memberIcons ?? {}) as Record<string, string>;
         setGoals(g); setCompletions(c); setRewards(r); setNotes(n); setMissions(ms);
+        if (Object.keys(icons).length > 0) {
+          setMembers(DEFAULT_MEMBERS.map((m) => ({ ...m, icon: icons[m.id] ?? m.icon })));
+          memberIconsRef.current = icons;
+          localStorage.setItem(LS.memberIcons, JSON.stringify(icons));
+        }
         lsSetAll(g, c, r, n, ms);
       } else {
         setGoals(lsGet<Goal[]>(LS.goals, []));
@@ -92,6 +99,7 @@ export function useAppData() {
         rewards: rewardsRef.current,
         notes: notesRef.current,
         missions: missionsRef.current,
+        memberIcons: memberIconsRef.current,
       };
       await saveToCloud(data);
       setSyncStatus('saved');
@@ -114,7 +122,13 @@ export function useAppData() {
         const r = (cloud.rewards ?? []) as Reward[];
         const n = (cloud.notes ?? []) as Note[];
         const ms = (cloud.missions ?? []) as FamilyMission[];
+        const icons = (cloud.memberIcons ?? {}) as Record<string, string>;
         setGoals(g); setCompletions(c); setRewards(r); setNotes(n); setMissions(ms);
+        if (Object.keys(icons).length > 0) {
+          setMembers(DEFAULT_MEMBERS.map((m) => ({ ...m, icon: icons[m.id] ?? m.icon })));
+          memberIconsRef.current = icons;
+          localStorage.setItem(LS.memberIcons, JSON.stringify(icons));
+        }
         lsSetAll(g, c, r, n, ms);
       }
       setSyncStatus('idle');
@@ -240,7 +254,9 @@ export function useAppData() {
     setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, icon } : m));
     try {
       const saved = lsGet<Record<string, string>>(LS.memberIcons, {});
-      localStorage.setItem(LS.memberIcons, JSON.stringify({ ...saved, [memberId]: icon }));
+      const updated = { ...saved, [memberId]: icon };
+      localStorage.setItem(LS.memberIcons, JSON.stringify(updated));
+      memberIconsRef.current = updated;
     } catch {}
   }, []);
 
