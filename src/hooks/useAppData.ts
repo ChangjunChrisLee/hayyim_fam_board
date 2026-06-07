@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Goal, GoalCompletion, Reward, Note, ViewMode, FamilyStats, MemberStats, FamilyMission, Member } from '@/types';
-import { DEFAULT_MEMBERS, getCurrentPeriodKey, getPeriodKey, getPeriodLabel, isGoalInView } from '@/lib/constants';
+import { DEFAULT_MEMBERS, getCurrentPeriodKey, getPeriodKey, getPeriodLabel, isGoalInView, getKSTNow } from '@/lib/constants';
 import { loadFromCloud, saveToCloud, isCloudEnabled, type DataStore } from '@/lib/clientStorage';
 
 const LS = { goals: 'hfb_goals', completions: 'hfb_completions', rewards: 'hfb_rewards', notes: 'hfb_notes', missions: 'hfb_missions', memberIcons: 'hfb_member_icons' };
@@ -35,7 +35,7 @@ export function useAppData() {
   const [missions, setMissions] = useState<FamilyMission[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getKSTNow());
   const [isLoaded, setIsLoaded] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
 
@@ -239,10 +239,10 @@ export function useAppData() {
     });
   }, [viewMode]);
 
-  const goToToday = useCallback(() => setSelectedDate(new Date()), []);
+  const goToToday = useCallback(() => setSelectedDate(getKSTNow()), []);
 
   const isCurrentPeriod = (() => {
-    const now = new Date();
+    const now = getKSTNow();
     if (viewMode === 'daily') return selectedDate.toDateString() === now.toDateString();
     if (viewMode === 'weekly') return getPeriodKey(selectedDate, 'weekly') === getPeriodKey(now, 'weekly');
     return selectedDate.getFullYear() === now.getFullYear() && selectedDate.getMonth() === now.getMonth();

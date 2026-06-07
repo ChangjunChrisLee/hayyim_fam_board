@@ -1,5 +1,7 @@
 'use client';
 
+import { getKSTNow } from '@/lib/constants';
+
 import { useState } from 'react';
 import type { FamilyMission, Member, MissionPeriod } from '@/types';
 
@@ -22,7 +24,7 @@ const PERIOD_LABEL: Record<MissionPeriod, string> = {
 
 function getContributionsForPeriod(mission: FamilyMission): number {
   if (mission.period === 'alltime') return mission.contributions.length;
-  const now = new Date();
+  const now = getKSTNow();
   return mission.contributions.filter((c) => {
     const d = new Date(c.createdAt);
     if (mission.period === 'daily') return d.toDateString() === now.toDateString();
@@ -43,7 +45,7 @@ function getMemberContributions(mission: FamilyMission, memberId: string): numbe
   if (mission.period === 'alltime') {
     return mission.contributions.filter((c) => c.memberId === memberId).length;
   }
-  const now = new Date();
+  const now = getKSTNow();
   return mission.contributions.filter((c) => {
     if (c.memberId !== memberId) return false;
     const d = new Date(c.createdAt);

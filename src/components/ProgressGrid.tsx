@@ -1,7 +1,7 @@
 'use client';
 
 import type { Member, Goal, GoalCompletion } from '@/types';
-import { getPeriodKey } from '@/lib/constants';
+import { getPeriodKey, getKSTNow } from '@/lib/constants';
 
 interface Props {
   mode: 'weekly' | 'monthly';
@@ -72,7 +72,7 @@ function CompletionCell({
 }
 
 export default function ProgressGrid({ mode, selectedDate, goals, completions, members }: Props) {
-  const today = new Date();
+  const today = getKSTNow();
 
   if (mode === 'weekly') {
     const days = getWeekDays(selectedDate);

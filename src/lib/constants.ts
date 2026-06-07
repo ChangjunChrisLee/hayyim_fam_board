@@ -1,3 +1,10 @@
+// Returns a Date whose year/month/date/day reflect Korean Standard Time (UTC+9)
+export function getKSTNow(): Date {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  return new Date(utcMs + 9 * 3600000);
+}
+
 import type { Member } from '@/types';
 
 export const DEFAULT_MEMBERS: Member[] = [
@@ -38,7 +45,7 @@ export const getPeriodKey = (date: Date, repeatType: 'daily' | 'weekly' | 'month
 };
 
 export const getCurrentPeriodKey = (repeatType: 'daily' | 'weekly' | 'monthly'): string =>
-  getPeriodKey(new Date(), repeatType);
+  getPeriodKey(getKSTNow(), repeatType);
 
 export const getPeriodLabel = (date: Date, viewMode: 'daily' | 'weekly' | 'monthly'): string => {
   const y = date.getFullYear();
@@ -61,7 +68,7 @@ export const getPeriodLabel = (date: Date, viewMode: 'daily' | 'weekly' | 'month
 
 export const isInViewPeriod = (completedAt: string, viewMode: 'daily' | 'weekly' | 'monthly'): boolean => {
   const date = new Date(completedAt);
-  const now = new Date();
+  const now = getKSTNow();
   if (viewMode === 'daily') return date.toDateString() === now.toDateString();
   if (viewMode === 'weekly') {
     const startOfWeek = new Date(now);
